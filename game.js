@@ -11,6 +11,7 @@ class Game {
             width: 50,
             height: 50,
             speed: 5,
+            baseSpeed: 5, // Store base speed for speed boost
             lane: 1, // 0: top, 1: middle, 2: bottom
             color: '#FF0000',
             hasShield: false,
@@ -142,6 +143,13 @@ class Game {
         // Update player position
         this.player.y = this.lanePositions[this.player.lane];
         
+        // Apply speed boost effect
+        if (this.player.speedBoost) {
+            this.player.speed = this.player.baseSpeed * 1.5; // 50% speed increase
+        } else {
+            this.player.speed = this.player.baseSpeed;
+        }
+        
         // Create new obstacles and power-ups
         if (Math.random() < 0.02) {
             this.createObstacle();
@@ -194,9 +202,88 @@ class Game {
         const effect = this.powerUpTypes[powerUp.type].effect;
         this.player[effect] = true;
         
+        // Add visual feedback when power-up is collected
+        this.showPowerUpFeedback(powerUp);
+        
         setTimeout(() => {
             this.player[effect] = false;
+            // Add visual feedback when power-up expires
+            this.showPowerUpExpired(powerUp);
         }, powerUp.duration);
+    }
+    
+    showPowerUpFeedback(powerUp) {
+        // Create a temporary text element to show power-up collection
+        const feedback = {
+            text: `+${powerUp.label}`,
+            x: this.player.x,
+            y: this.player.y - 20,
+            color: powerUp.color,
+            alpha: 1,
+            duration: 1000 // 1 second
+        };
+        
+        // Animate the feedback text
+        const startTime = Date.now();
+        const animateFeedback = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / feedback.duration;
+            
+            if (progress < 1) {
+                feedback.y -= 2; // Move up
+                feedback.alpha = 1 - progress; // Fade out
+                
+                this.ctx.fillStyle = `rgba(${this.hexToRgb(feedback.color)}, ${feedback.alpha})`;
+                this.ctx.font = '20px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(feedback.text, feedback.x + this.player.width/2, feedback.y);
+                
+                requestAnimationFrame(animateFeedback);
+            }
+        };
+        
+        animateFeedback();
+    }
+    
+    showPowerUpExpired(powerUp) {
+        // Create a temporary text element to show power-up expiration
+        const feedback = {
+            text: `${powerUp.label} expired`,
+            x: this.player.x,
+            y: this.player.y - 20,
+            color: powerUp.color,
+            alpha: 1,
+            duration: 1000 // 1 second
+        };
+        
+        // Animate the feedback text
+        const startTime = Date.now();
+        const animateFeedback = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / feedback.duration;
+            
+            if (progress < 1) {
+                feedback.y -= 2; // Move up
+                feedback.alpha = 1 - progress; // Fade out
+                
+                this.ctx.fillStyle = `rgba(${this.hexToRgb(feedback.color)}, ${feedback.alpha})`;
+                this.ctx.font = '20px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(feedback.text, feedback.x + this.player.width/2, feedback.y);
+                
+                requestAnimationFrame(animateFeedback);
+            }
+        };
+        
+        animateFeedback();
+    }
+    
+    hexToRgb(hex) {
+        // Convert hex color to RGB
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? 
+            `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : 
+            '0, 0, 0';
     }
     
     draw() {

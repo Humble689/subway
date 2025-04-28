@@ -8,15 +8,17 @@ class Game {
         this.player = {
             x: 100,
             y: this.canvas.height / 2,
-            width: 50,
-            height: 50,
+            width: 40,
+            height: 60,
             speed: 5,
-            baseSpeed: 5, // Store base speed for speed boost
-            lane: 1, // 0: top, 1: middle, 2: bottom
+            baseSpeed: 5,
+            lane: 1,
             color: '#FF0000',
             hasShield: false,
             speedBoost: false,
-            scoreMultiplier: false
+            scoreMultiplier: false,
+            frame: 0,
+            frameCount: 0
         };
         
         this.obstacles = [];
@@ -207,16 +209,23 @@ class Game {
     }
     
     checkCollision(player, obstacle) {
-        // Debug log for shield state
+        // Adjust collision box to match character size
+        const collisionBox = {
+            x: player.x - 5, // Include arms
+            y: player.y,
+            width: player.width + 10, // Include arms
+            height: player.height
+        };
+        
         if (this.player.hasShield) {
             console.log('Shield is active!');
             return false;
         }
         
-        const collision = player.x < obstacle.x + obstacle.width &&
-               player.x + player.width > obstacle.x &&
-               player.y < obstacle.y + obstacle.height &&
-               player.y + player.height > obstacle.y;
+        const collision = collisionBox.x < obstacle.x + obstacle.width &&
+               collisionBox.x + collisionBox.width > obstacle.x &&
+               collisionBox.y < obstacle.y + obstacle.height &&
+               collisionBox.y + collisionBox.height > obstacle.y;
         
         if (collision) {
             console.log('Collision detected!');
@@ -342,9 +351,8 @@ class Game {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Draw player
-        this.ctx.fillStyle = this.player.color;
-        this.ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
+        // Draw player character
+        this.drawCharacter();
         
         // Draw shield if active
         if (this.player.hasShield) {
@@ -428,6 +436,50 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2);
         }
+    }
+    
+    drawCharacter() {
+        const { x, y, width, height } = this.player;
+        
+        // Update animation frame
+        this.player.frameCount++;
+        if (this.player.frameCount >= 10) {
+            this.player.frame = (this.player.frame + 1) % 2;
+            this.player.frameCount = 0;
+        }
+        
+        // Draw body
+        this.ctx.fillStyle = '#3498db'; // Blue shirt
+        this.ctx.fillRect(x, y + 10, width, height - 20);
+        
+        // Draw head
+        this.ctx.fillStyle = '#f1c40f'; // Yellow head
+        this.ctx.beginPath();
+        this.ctx.arc(x + width/2, y, width/2, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Draw eyes
+        this.ctx.fillStyle = 'white';
+        this.ctx.beginPath();
+        this.ctx.arc(x + width/3, y - 5, 3, 0, Math.PI * 2);
+        this.ctx.arc(x + 2*width/3, y - 5, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Draw arms
+        this.ctx.fillStyle = '#3498db';
+        const armY = this.player.frame === 0 ? y + 15 : y + 25;
+        // Left arm
+        this.ctx.fillRect(x - 5, armY, 5, 15);
+        // Right arm
+        this.ctx.fillRect(x + width, armY, 5, 15);
+        
+        // Draw legs
+        this.ctx.fillStyle = '#2c3e50'; // Dark pants
+        const legY = this.player.frame === 0 ? y + height - 15 : y + height - 25;
+        // Left leg
+        this.ctx.fillRect(x + 5, legY, 10, 15);
+        // Right leg
+        this.ctx.fillRect(x + width - 15, legY, 10, 15);
     }
     
     drawPowerUpIndicators() {

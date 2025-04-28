@@ -94,12 +94,20 @@ class Game {
             cancelAnimationFrame(this.animationId);
         }
         
+        // Clear any existing power-up timers
+        if (this.speedBoostTimer) clearTimeout(this.speedBoostTimer);
+        if (this.shieldTimer) clearTimeout(this.shieldTimer);
+        if (this.scoreMultiplierTimer) clearTimeout(this.scoreMultiplierTimer);
+        
         this.player.lane = 1;
         this.obstacles = [];
         this.powerUps = [];
         this.score = 0;
         this.gameOver = false;
         this.isPaused = false;
+        this.player.hasShield = false;
+        this.player.speedBoost = false;
+        this.player.scoreMultiplier = false;
         document.getElementById('score').textContent = '0';
         document.getElementById('pauseButton').textContent = 'Pause';
         
@@ -178,12 +186,13 @@ class Game {
         });
         
         // Check collisions with power-ups
-        this.powerUps.forEach((powerUp, index) => {
-            if (this.checkCollision(this.player, powerUp)) {
+        for (let i = this.powerUps.length - 1; i >= 0; i--) {
+            const powerUp = this.powerUps[i];
+            if (this.checkPowerUpCollision(this.player, powerUp)) {
                 this.activatePowerUp(powerUp);
-                this.powerUps.splice(index, 1);
+                this.powerUps.splice(i, 1);
             }
-        });
+        }
         
         // Update score
         const scoreIncrement = this.player.scoreMultiplier ? 2 : 1;
@@ -192,22 +201,64 @@ class Game {
     }
     
     checkCollision(player, obstacle) {
+        if (this.player.hasShield) {
+            // When shield is active, check if obstacle is within shield radius
+            const playerCenterX = player.x + player.width/2;
+            const playerCenterY = player.y + player.height/2;
+            const obstacleCenterX = obstacle.x + obstacle.width/2;
+            const obstacleCenterY = obstacle.y + obstacle.height/2;
+            
+            const distance = Math.sqrt(
+                Math.pow(playerCenterX - obstacleCenterX, 2) +
+                Math.pow(playerCenterY - obstacleCenterY, 2)
+            );
+            
+            // If obstacle is within shield radius, it's deflected
+            if (distance < (player.width + 20)) {
+                // Make the obstacle bounce off
+                obstacle.x += 5; // Push the obstacle away
+                return false; // No collision
+            }
+        }
+        
+        // Normal collision check when no shield
         return player.x < obstacle.x + obstacle.width &&
                player.x + player.width > obstacle.x &&
                player.y < obstacle.y + obstacle.height &&
                player.y + player.height > obstacle.y;
     }
     
+    checkPowerUpCollision(player, powerUp) {
+        const playerCenterX = player.x + player.width/2;
+        const playerCenterY = player.y + player.height/2;
+        const powerUpCenterX = powerUp.x + powerUp.width/2;
+        const powerUpCenterY = powerUp.y + powerUp.height/2;
+        
+        const distance = Math.sqrt(
+            Math.pow(playerCenterX - powerUpCenterX, 2) +
+            Math.pow(playerCenterY - powerUpCenterY, 2)
+        );
+        
+        return distance < (player.width/2 + powerUp.width/2);
+    }
+    
     activatePowerUp(powerUp) {
         const effect = this.powerUpTypes[powerUp.type].effect;
+        
+        // Cancel any existing timer for this effect
+        if (this[`${effect}Timer`]) {
+            clearTimeout(this[`${effect}Timer`]);
+        }
+        
+        // Activate the effect
         this.player[effect] = true;
         
-        // Add visual feedback when power-up is collected
+        // Show feedback
         this.showPowerUpFeedback(powerUp);
         
-        setTimeout(() => {
+        // Set timer to deactivate the effect
+        this[`${effect}Timer`] = setTimeout(() => {
             this.player[effect] = false;
-            // Add visual feedback when power-up expires
             this.showPowerUpExpired(powerUp);
         }, powerUp.duration);
     }
@@ -296,9 +347,52 @@ class Game {
         
         // Draw shield if active
         if (this.player.hasShield) {
+            // Draw outer shield glow
+            this.ctx.beginPath();
+            this.ctx.arc(
+                this.player.x + this.player.width/2,
+                this.player.y + this.player.height/2,
+                this.player.width + 20,
+                0,
+                Math.PI * 2
+            );
+            const gradient = this.ctx.createRadialGradient(
+                this.player.x + this.player.width/2,
+                this.player.y + this.player.height/2,
+                this.player.width/2,
+                this.player.x + this.player.width/2,
+                this.player.y + this.player.height/2,
+                this.player.width + 20
+            );
+            gradient.addColorStop(0, 'rgba(0, 255, 255, 0.5)');
+            gradient.addColorStop(0.5, 'rgba(0, 255, 255, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+            this.ctx.fillStyle = gradient;
+            this.ctx.fill();
+            
+            // Draw shield ring
+            this.ctx.beginPath();
+            this.ctx.arc(
+                this.player.x + this.player.width/2,
+                this.player.y + this.player.height/2,
+                this.player.width + 15,
+                0,
+                Math.PI * 2
+            );
             this.ctx.strokeStyle = '#00FFFF';
             this.ctx.lineWidth = 3;
-            this.ctx.strokeRect(this.player.x - 5, this.player.y - 5, this.player.width + 10, this.player.height + 10);
+            this.ctx.stroke();
+            
+            // Draw shield symbol
+            this.ctx.font = '24px Arial';
+            this.ctx.fillStyle = '#00FFFF';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('🛡️', this.player.x + this.player.width/2, this.player.y + this.player.height/2);
+            
+            // Draw shield text
+            this.ctx.font = '16px Arial';
+            this.ctx.fillText('SHIELD', this.player.x + this.player.width/2, this.player.y + this.player.height + 20);
         }
         
         // Draw obstacles

@@ -5,6 +5,9 @@ class Game {
         this.canvas.width = 800;
         this.canvas.height = 600;
         
+        // Load saved coins from localStorage
+        this.savedCoins = parseInt(localStorage.getItem('playerCoins')) || 0;
+        
         this.characters = {
             DEFAULT: {
                 name: 'Default',
@@ -20,7 +23,7 @@ class Game {
                 headColor: '#2c3e50',
                 bodyColor: '#2c3e50',
                 pantsColor: '#2c3e50',
-                unlocked: false
+                unlocked: localStorage.getItem('unlocked_NINJA') === 'true'
             },
             ROBOT: {
                 name: 'Robot',
@@ -28,7 +31,7 @@ class Game {
                 headColor: '#95a5a6',
                 bodyColor: '#7f8c8d',
                 pantsColor: '#34495e',
-                unlocked: false
+                unlocked: localStorage.getItem('unlocked_ROBOT') === 'true'
             },
             SUPERHERO: {
                 name: 'Superhero',
@@ -36,7 +39,7 @@ class Game {
                 headColor: '#e74c3c',
                 bodyColor: '#e74c3c',
                 pantsColor: '#2c3e50',
-                unlocked: false
+                unlocked: localStorage.getItem('unlocked_SUPERHERO') === 'true'
             }
         };
         
@@ -48,7 +51,7 @@ class Game {
             speed: 5,
             baseSpeed: 5,
             lane: 1,
-            character: 'DEFAULT',
+            character: localStorage.getItem('selectedCharacter') || 'DEFAULT',
             hasShield: false,
             speedBoost: false,
             scoreMultiplier: false,
@@ -61,7 +64,7 @@ class Game {
             jumpHeight: 15,
             slideDuration: 1000,
             slideTimer: null,
-            coins: 0
+            coins: this.savedCoins
         };
         
         // Add police officer (chaser)
@@ -177,7 +180,10 @@ class Game {
         if (this.scoreMultiplierTimer) clearTimeout(this.scoreMultiplierTimer);
         if (this.player.slideTimer) clearTimeout(this.player.slideTimer);
         
-        // Reset player state
+        // Load saved coins from localStorage
+        const savedCoins = parseInt(localStorage.getItem('playerCoins')) || 0;
+        
+        // Reset player state but keep saved coins
         this.player = {
             ...this.player,
             lane: 1,
@@ -187,7 +193,7 @@ class Game {
             isJumping: false,
             isSliding: false,
             jumpVelocity: 0,
-            coins: 0
+            coins: savedCoins  // Use the saved coins instead of resetting to 0
         };
         
         this.obstacles = [];
@@ -246,7 +252,7 @@ class Game {
     
     createCoin() {
         const lane = Math.floor(Math.random() * 3);
-        this.coins.push({
+        const coin = {
             x: this.canvas.width,
             y: this.lanePositions[lane],
             width: 20,
@@ -254,7 +260,9 @@ class Game {
             speed: 7,
             value: 1,
             collected: false
-        });
+        };
+        this.coins.push(coin);
+        console.log('New coin created at lane:', lane, 'Position:', coin.x, coin.y);
     }
     
     update() {
@@ -343,7 +351,8 @@ class Game {
         // Update score
         const scoreIncrement = this.player.scoreMultiplier ? 2 : 1;
         this.score += scoreIncrement;
-        document.getElementById('score').textContent = Math.floor(this.score / 10);
+        document.querySelector('.score').textContent = Math.floor(this.score / 10);
+        document.querySelector('.coin-counter').textContent = this.player.coins;
         
         // Check if police caught up
         if (this.police.distance <= 0) {
@@ -503,6 +512,11 @@ class Game {
         // Draw coins
         this.coins.forEach(coin => {
             if (!coin.collected) {
+                // Draw coin with glow effect
+                this.ctx.shadowColor = '#FFD700';
+                this.ctx.shadowBlur = 10;
+                
+                // Draw coin body
                 this.ctx.fillStyle = '#FFD700';
                 this.ctx.beginPath();
                 this.ctx.arc(coin.x + coin.width/2, coin.y + coin.height/2, coin.width/2, 0, Math.PI * 2);
@@ -514,6 +528,9 @@ class Game {
                 this.ctx.textAlign = 'center';
                 this.ctx.textBaseline = 'middle';
                 this.ctx.fillText('$', coin.x + coin.width/2, coin.y + coin.height/2);
+                
+                // Reset shadow
+                this.ctx.shadowBlur = 0;
             }
         });
         
@@ -712,12 +729,6 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.fillText('⚡', x + width/2, y - 20);
         }
-        
-        // Draw coin counter
-        this.ctx.fillStyle = 'white';
-        this.ctx.font = '20px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText(`Coins: ${this.player.coins}`, 10, 30);
     }
     
     drawPowerUpIndicators() {
@@ -775,10 +786,30 @@ class Game {
     checkCoinCollection() {
         for (let i = this.coins.length - 1; i >= 0; i--) {
             const coin = this.coins[i];
-            if (!coin.collected && this.checkCollision(this.player, coin)) {
-                coin.collected = true;
-                this.player.coins += coin.value;
-                this.showCoinCollection(coin);
+            if (!coin.collected) {
+                const playerCenterX = this.player.x + this.player.width/2;
+                const playerCenterY = this.player.y + this.player.height/2;
+                const coinCenterX = coin.x + coin.width/2;
+                const coinCenterY = coin.y + coin.height/2;
+                
+                const distance = Math.sqrt(
+                    Math.pow(playerCenterX - coinCenterX, 2) +
+                    Math.pow(playerCenterY - coinCenterY, 2)
+                );
+                
+                if (distance < (this.player.width/2 + coin.width/2)) {
+                    coin.collected = true;
+                    this.player.coins += coin.value;
+                    // Save coins to localStorage
+                    localStorage.setItem('playerCoins', this.player.coins);
+                    this.showCoinCollection(coin);
+                    console.log('Coin collected! Total coins:', this.player.coins);
+                    
+                    // Update the shop display if it's open
+                    if (document.getElementById('shop')) {
+                        this.updateShop();
+                    }
+                }
             }
         }
         this.coins = this.coins.filter(coin => !coin.collected);
@@ -905,14 +936,20 @@ class Game {
         if (this.player.coins >= character.price) {
             this.player.coins -= character.price;
             character.unlocked = true;
+            // Save unlocked status to localStorage
+            localStorage.setItem(`unlocked_${characterKey}`, 'true');
             this.selectCharacter(characterKey);
             this.showPurchaseFeedback(`Unlocked ${character.name}!`);
+            // Save coins to localStorage
+            localStorage.setItem('playerCoins', this.player.coins);
             this.updateShop();
         }
     }
     
     selectCharacter(characterKey) {
         this.player.character = characterKey;
+        // Save selected character to localStorage
+        localStorage.setItem('selectedCharacter', characterKey);
         this.showPurchaseFeedback(`Selected ${this.characters[characterKey].name}`);
         this.updateShop();
     }

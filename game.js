@@ -44,7 +44,7 @@ class Game {
                 symbol: '🛡️',
                 color: '#00FFFF',
                 duration: 3000,
-                effect: 'shield',
+                effect: 'hasShield',
                 label: 'SHIELD'
             },
             MULTIPLIER: { 
@@ -96,20 +96,24 @@ class Game {
         
         // Clear any existing power-up timers
         if (this.speedBoostTimer) clearTimeout(this.speedBoostTimer);
-        if (this.shieldTimer) clearTimeout(this.shieldTimer);
+        if (this.hasShieldTimer) clearTimeout(this.hasShieldTimer);
         if (this.scoreMultiplierTimer) clearTimeout(this.scoreMultiplierTimer);
         
+        // Reset player state
         this.player.lane = 1;
+        this.player.hasShield = false;
+        this.player.speedBoost = false;
+        this.player.scoreMultiplier = false;
+        
         this.obstacles = [];
         this.powerUps = [];
         this.score = 0;
         this.gameOver = false;
         this.isPaused = false;
-        this.player.hasShield = false;
-        this.player.speedBoost = false;
-        this.player.scoreMultiplier = false;
         document.getElementById('score').textContent = '0';
         document.getElementById('pauseButton').textContent = 'Pause';
+        
+        console.log('Game started, player state:', this.player);
         
         this.gameLoop();
     }
@@ -131,6 +135,8 @@ class Game {
         const powerUpTypes = Object.keys(this.powerUpTypes);
         const randomType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
         const powerUpType = this.powerUpTypes[randomType];
+        
+        console.log('Creating power-up:', randomType);
         
         this.powerUps.push({
             x: this.canvas.width,
@@ -201,31 +207,22 @@ class Game {
     }
     
     checkCollision(player, obstacle) {
+        // Debug log for shield state
         if (this.player.hasShield) {
-            // When shield is active, check if obstacle is within shield radius
-            const playerCenterX = player.x + player.width/2;
-            const playerCenterY = player.y + player.height/2;
-            const obstacleCenterX = obstacle.x + obstacle.width/2;
-            const obstacleCenterY = obstacle.y + obstacle.height/2;
-            
-            const distance = Math.sqrt(
-                Math.pow(playerCenterX - obstacleCenterX, 2) +
-                Math.pow(playerCenterY - obstacleCenterY, 2)
-            );
-            
-            // If obstacle is within shield radius, it's deflected
-            if (distance < (player.width + 20)) {
-                // Make the obstacle bounce off
-                obstacle.x += 5; // Push the obstacle away
-                return false; // No collision
-            }
+            console.log('Shield is active!');
+            return false;
         }
         
-        // Normal collision check when no shield
-        return player.x < obstacle.x + obstacle.width &&
+        const collision = player.x < obstacle.x + obstacle.width &&
                player.x + player.width > obstacle.x &&
                player.y < obstacle.y + obstacle.height &&
                player.y + player.height > obstacle.y;
+        
+        if (collision) {
+            console.log('Collision detected!');
+        }
+        
+        return collision;
     }
     
     checkPowerUpCollision(player, powerUp) {
@@ -243,15 +240,18 @@ class Game {
     }
     
     activatePowerUp(powerUp) {
+        console.log('Activating power-up:', powerUp.type);
         const effect = this.powerUpTypes[powerUp.type].effect;
         
         // Cancel any existing timer for this effect
         if (this[`${effect}Timer`]) {
             clearTimeout(this[`${effect}Timer`]);
+            console.log('Cleared existing timer for:', effect);
         }
         
         // Activate the effect
         this.player[effect] = true;
+        console.log('Effect activated:', effect, 'New state:', this.player[effect]);
         
         // Show feedback
         this.showPowerUpFeedback(powerUp);
@@ -259,6 +259,7 @@ class Game {
         // Set timer to deactivate the effect
         this[`${effect}Timer`] = setTimeout(() => {
             this.player[effect] = false;
+            console.log('Effect deactivated:', effect, 'New state:', this.player[effect]);
             this.showPowerUpExpired(powerUp);
         }, powerUp.duration);
     }
@@ -347,35 +348,24 @@ class Game {
         
         // Draw shield if active
         if (this.player.hasShield) {
-            // Draw outer shield glow
+            // Draw shield background
             this.ctx.beginPath();
             this.ctx.arc(
                 this.player.x + this.player.width/2,
                 this.player.y + this.player.height/2,
-                this.player.width + 20,
+                this.player.width + 10,
                 0,
                 Math.PI * 2
             );
-            const gradient = this.ctx.createRadialGradient(
-                this.player.x + this.player.width/2,
-                this.player.y + this.player.height/2,
-                this.player.width/2,
-                this.player.x + this.player.width/2,
-                this.player.y + this.player.height/2,
-                this.player.width + 20
-            );
-            gradient.addColorStop(0, 'rgba(0, 255, 255, 0.5)');
-            gradient.addColorStop(0.5, 'rgba(0, 255, 255, 0.2)');
-            gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
-            this.ctx.fillStyle = gradient;
+            this.ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
             this.ctx.fill();
             
-            // Draw shield ring
+            // Draw shield border
             this.ctx.beginPath();
             this.ctx.arc(
                 this.player.x + this.player.width/2,
                 this.player.y + this.player.height/2,
-                this.player.width + 15,
+                this.player.width + 10,
                 0,
                 Math.PI * 2
             );
@@ -389,10 +379,6 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText('🛡️', this.player.x + this.player.width/2, this.player.y + this.player.height/2);
-            
-            // Draw shield text
-            this.ctx.font = '16px Arial';
-            this.ctx.fillText('SHIELD', this.player.x + this.player.width/2, this.player.y + this.player.height + 20);
         }
         
         // Draw obstacles

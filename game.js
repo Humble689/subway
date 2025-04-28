@@ -32,9 +32,27 @@ class Game {
         ];
         
         this.powerUpTypes = {
-            SPEED: { color: '#FFA500', duration: 5000, effect: 'speedBoost' },
-            SHIELD: { color: '#00FFFF', duration: 3000, effect: 'shield' },
-            MULTIPLIER: { color: '#FFFF00', duration: 4000, effect: 'scoreMultiplier' }
+            SPEED: { 
+                symbol: '⚡',
+                color: '#FFA500',
+                duration: 5000,
+                effect: 'speedBoost',
+                label: 'SPEED'
+            },
+            SHIELD: { 
+                symbol: '🛡️',
+                color: '#00FFFF',
+                duration: 3000,
+                effect: 'shield',
+                label: 'SHIELD'
+            },
+            MULTIPLIER: { 
+                symbol: '✖️',
+                color: '#FFFF00',
+                duration: 4000,
+                effect: 'scoreMultiplier',
+                label: '2x SCORE'
+            }
         };
         
         this.setupEventListeners();
@@ -103,17 +121,20 @@ class Game {
         const lane = Math.floor(Math.random() * 3);
         const powerUpTypes = Object.keys(this.powerUpTypes);
         const randomType = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+        const powerUpType = this.powerUpTypes[randomType];
         
         this.powerUps.push({
             x: this.canvas.width,
             y: this.lanePositions[lane],
-            width: 30,
-            height: 30,
+            width: 40,
+            height: 40,
             speed: 7,
             type: randomType,
-            color: this.powerUpTypes[randomType].color,
+            symbol: powerUpType.symbol,
+            color: powerUpType.color,
+            label: powerUpType.label,
             active: false,
-            duration: this.powerUpTypes[randomType].duration
+            duration: powerUpType.duration
         });
     }
     
@@ -201,8 +222,22 @@ class Game {
         
         // Draw power-ups
         this.powerUps.forEach(powerUp => {
+            // Draw background circle
+            this.ctx.beginPath();
+            this.ctx.arc(powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2, powerUp.width/2, 0, Math.PI * 2);
             this.ctx.fillStyle = powerUp.color;
-            this.ctx.fillRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+            this.ctx.fill();
+            
+            // Draw symbol
+            this.ctx.font = '30px Arial';
+            this.ctx.fillStyle = 'white';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(powerUp.symbol, powerUp.x + powerUp.width/2, powerUp.y + powerUp.height/2);
+            
+            // Draw label below
+            this.ctx.font = '12px Arial';
+            this.ctx.fillText(powerUp.label, powerUp.x + powerUp.width/2, powerUp.y + powerUp.height + 15);
         });
         
         // Draw active power-up indicators

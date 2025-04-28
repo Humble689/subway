@@ -5,6 +5,41 @@ class Game {
         this.canvas.width = 800;
         this.canvas.height = 600;
         
+        this.characters = {
+            DEFAULT: {
+                name: 'Default',
+                price: 0,
+                headColor: '#f1c40f',
+                bodyColor: '#3498db',
+                pantsColor: '#2c3e50',
+                unlocked: true
+            },
+            NINJA: {
+                name: 'Ninja',
+                price: 500,
+                headColor: '#2c3e50',
+                bodyColor: '#2c3e50',
+                pantsColor: '#2c3e50',
+                unlocked: false
+            },
+            ROBOT: {
+                name: 'Robot',
+                price: 1000,
+                headColor: '#95a5a6',
+                bodyColor: '#7f8c8d',
+                pantsColor: '#34495e',
+                unlocked: false
+            },
+            SUPERHERO: {
+                name: 'Superhero',
+                price: 1500,
+                headColor: '#e74c3c',
+                bodyColor: '#e74c3c',
+                pantsColor: '#2c3e50',
+                unlocked: false
+            }
+        };
+        
         this.player = {
             x: 100,
             y: this.canvas.height / 2,
@@ -13,16 +48,36 @@ class Game {
             speed: 5,
             baseSpeed: 5,
             lane: 1,
-            color: '#FF0000',
+            character: 'DEFAULT',
             hasShield: false,
             speedBoost: false,
             scoreMultiplier: false,
             frame: 0,
-            frameCount: 0
+            frameCount: 0,
+            isJumping: false,
+            isSliding: false,
+            jumpVelocity: 0,
+            gravity: 0.5,
+            jumpHeight: 15,
+            slideDuration: 1000,
+            slideTimer: null,
+            coins: 0
+        };
+        
+        // Add police officer (chaser)
+        this.police = {
+            x: -200,
+            y: this.canvas.height / 2,
+            width: 50,
+            height: 70,
+            speed: 4,
+            lane: 1,
+            distance: 0 // Distance behind player
         };
         
         this.obstacles = [];
         this.powerUps = [];
+        this.coins = [];
         this.score = 0;
         this.gameOver = false;
         this.isPaused = false;
@@ -40,21 +95,24 @@ class Game {
                 color: '#FFA500',
                 duration: 5000,
                 effect: 'speedBoost',
-                label: 'SPEED'
+                label: 'SPEED',
+                price: 100
             },
             SHIELD: { 
                 symbol: '🛡️',
                 color: '#00FFFF',
                 duration: 3000,
                 effect: 'hasShield',
-                label: 'SHIELD'
+                label: 'SHIELD',
+                price: 150
             },
             MULTIPLIER: { 
                 symbol: '✖️',
                 color: '#FFFF00',
                 duration: 4000,
                 effect: 'scoreMultiplier',
-                label: '2x SCORE'
+                label: '2x SCORE',
+                price: 200
             }
         };
         
@@ -65,9 +123,13 @@ class Game {
         document.addEventListener('keydown', (e) => {
             if (this.isPaused || this.gameOver) return;
             
-            if (e.key === 'ArrowUp' && this.player.lane > 0) {
+            if (e.key === 'ArrowUp' && !this.player.isJumping && !this.player.isSliding) {
+                this.jump();
+            } else if (e.key === 'ArrowDown' && !this.player.isJumping && !this.player.isSliding) {
+                this.slide();
+            } else if (e.key === 'ArrowLeft' && this.player.lane > 0) {
                 this.player.lane--;
-            } else if (e.key === 'ArrowDown' && this.player.lane < 2) {
+            } else if (e.key === 'ArrowRight' && this.player.lane < 2) {
                 this.player.lane++;
             }
         });
@@ -78,6 +140,10 @@ class Game {
         
         document.getElementById('pauseButton').addEventListener('click', () => {
             this.togglePause();
+        });
+        
+        document.getElementById('shopButton').addEventListener('click', () => {
+            this.toggleShop();
         });
     }
     
@@ -91,44 +157,67 @@ class Game {
         }
     }
     
+    toggleShop() {
+        const shop = document.getElementById('shop');
+        if (shop) {
+            this.closeShop();
+        } else {
+            this.openShop();
+        }
+    }
+    
     startGame() {
         if (this.animationId) {
             cancelAnimationFrame(this.animationId);
         }
         
-        // Clear any existing power-up timers
+        // Clear any existing timers
         if (this.speedBoostTimer) clearTimeout(this.speedBoostTimer);
         if (this.hasShieldTimer) clearTimeout(this.hasShieldTimer);
         if (this.scoreMultiplierTimer) clearTimeout(this.scoreMultiplierTimer);
+        if (this.player.slideTimer) clearTimeout(this.player.slideTimer);
         
         // Reset player state
-        this.player.lane = 1;
-        this.player.hasShield = false;
-        this.player.speedBoost = false;
-        this.player.scoreMultiplier = false;
+        this.player = {
+            ...this.player,
+            lane: 1,
+            hasShield: false,
+            speedBoost: false,
+            scoreMultiplier: false,
+            isJumping: false,
+            isSliding: false,
+            jumpVelocity: 0,
+            coins: 0
+        };
         
         this.obstacles = [];
         this.powerUps = [];
+        this.coins = [];
         this.score = 0;
         this.gameOver = false;
         this.isPaused = false;
+        this.police.distance = 0;
+        this.police.lane = 1;
+        
         document.getElementById('score').textContent = '0';
         document.getElementById('pauseButton').textContent = 'Pause';
-        
-        console.log('Game started, player state:', this.player);
         
         this.gameLoop();
     }
     
     createObstacle() {
         const lane = Math.floor(Math.random() * 3);
+        const types = ['jump', 'slide'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
         this.obstacles.push({
             x: this.canvas.width,
             y: this.lanePositions[lane],
             width: 30,
-            height: 30,
+            height: type === 'jump' ? 40 : 20, // Tall for jump, short for slide
             speed: 7,
-            color: '#00FF00'
+            color: type === 'jump' ? '#FF0000' : '#00FF00', // Red for jump, green for slide
+            type: type
         });
     }
     
@@ -155,15 +244,52 @@ class Game {
         });
     }
     
+    createCoin() {
+        const lane = Math.floor(Math.random() * 3);
+        this.coins.push({
+            x: this.canvas.width,
+            y: this.lanePositions[lane],
+            width: 20,
+            height: 20,
+            speed: 7,
+            value: 1,
+            collected: false
+        });
+    }
+    
     update() {
+        if (this.gameOver || this.isPaused) return;
+        
         // Update player position
         this.player.y = this.lanePositions[this.player.lane];
         
+        // Handle jumping
+        if (this.player.isJumping) {
+            this.player.jumpVelocity += this.player.gravity;
+            this.player.y += this.player.jumpVelocity;
+            
+            if (this.player.y >= this.lanePositions[this.player.lane]) {
+                this.player.y = this.lanePositions[this.player.lane];
+                this.player.isJumping = false;
+                this.player.jumpVelocity = 0;
+            }
+        }
+        
         // Apply speed boost effect
         if (this.player.speedBoost) {
-            this.player.speed = this.player.baseSpeed * 1.5; // 50% speed increase
+            this.player.speed = this.player.baseSpeed * 1.5;
         } else {
             this.player.speed = this.player.baseSpeed;
+        }
+        
+        // Update police position
+        this.police.distance += this.player.speed - this.police.speed;
+        this.police.x = this.player.x - 200 - this.police.distance;
+        this.police.y = this.lanePositions[this.police.lane];
+        
+        // Police occasionally changes lanes
+        if (Math.random() < 0.01) {
+            this.police.lane = Math.floor(Math.random() * 3);
         }
         
         // Create new obstacles and power-ups
@@ -172,6 +298,9 @@ class Game {
         }
         if (Math.random() < 0.01) {
             this.createPowerUp();
+        }
+        if (Math.random() < 0.05) {
+            this.createCoin();
         }
         
         // Update obstacles
@@ -184,6 +313,12 @@ class Game {
         this.powerUps = this.powerUps.filter(powerUp => {
             powerUp.x -= powerUp.speed;
             return powerUp.x > -powerUp.width;
+        });
+        
+        // Update coins
+        this.coins = this.coins.filter(coin => {
+            coin.x -= coin.speed;
+            return coin.x > -coin.width;
         });
         
         // Check collisions with obstacles
@@ -202,36 +337,47 @@ class Game {
             }
         }
         
+        // Check coin collection
+        this.checkCoinCollection();
+        
         // Update score
         const scoreIncrement = this.player.scoreMultiplier ? 2 : 1;
         this.score += scoreIncrement;
         document.getElementById('score').textContent = Math.floor(this.score / 10);
+        
+        // Check if police caught up
+        if (this.police.distance <= 0) {
+            this.gameOver = true;
+        }
     }
     
     checkCollision(player, obstacle) {
-        // Adjust collision box to match character size
+        // Adjust collision box based on player state
         const collisionBox = {
-            x: player.x - 5, // Include arms
+            x: player.x - (player.isSliding ? 0 : 5),
             y: player.y,
-            width: player.width + 10, // Include arms
-            height: player.height
+            width: player.width + (player.isSliding ? 0 : 10),
+            height: player.isSliding ? 10 : player.height
         };
         
         if (this.player.hasShield) {
-            console.log('Shield is active!');
             return false;
         }
         
-        const collision = collisionBox.x < obstacle.x + obstacle.width &&
-               collisionBox.x + collisionBox.width > obstacle.x &&
-               collisionBox.y < obstacle.y + obstacle.height &&
-               collisionBox.y + collisionBox.height > obstacle.y;
-        
-        if (collision) {
-            console.log('Collision detected!');
+        // Check if player is in correct state for obstacle type
+        if (obstacle.type === 'jump' && !player.isJumping) {
+            return collisionBox.x < obstacle.x + obstacle.width &&
+                   collisionBox.x + collisionBox.width > obstacle.x &&
+                   collisionBox.y < obstacle.y + obstacle.height &&
+                   collisionBox.y + collisionBox.height > obstacle.y;
+        } else if (obstacle.type === 'slide' && !player.isSliding) {
+            return collisionBox.x < obstacle.x + obstacle.width &&
+                   collisionBox.x + collisionBox.width > obstacle.x &&
+                   collisionBox.y < obstacle.y + obstacle.height &&
+                   collisionBox.y + collisionBox.height > obstacle.y;
         }
         
-        return collision;
+        return false;
     }
     
     checkPowerUpCollision(player, powerUp) {
@@ -351,6 +497,43 @@ class Game {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
+        // Draw police officer
+        this.drawPolice();
+        
+        // Draw coins
+        this.coins.forEach(coin => {
+            if (!coin.collected) {
+                this.ctx.fillStyle = '#FFD700';
+                this.ctx.beginPath();
+                this.ctx.arc(coin.x + coin.width/2, coin.y + coin.height/2, coin.width/2, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Draw $ symbol
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillText('$', coin.x + coin.width/2, coin.y + coin.height/2);
+            }
+        });
+        
+        // Draw obstacles with type indicators
+        this.obstacles.forEach(obstacle => {
+            this.ctx.fillStyle = obstacle.color;
+            this.ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            
+            // Draw type indicator
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '20px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(
+                obstacle.type === 'jump' ? '↑' : '↓',
+                obstacle.x + obstacle.width/2,
+                obstacle.y + obstacle.height/2
+            );
+        });
+        
         // Draw player character
         this.drawCharacter();
         
@@ -388,12 +571,6 @@ class Game {
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText('🛡️', this.player.x + this.player.width/2, this.player.y + this.player.height/2);
         }
-        
-        // Draw obstacles
-        this.obstacles.forEach(obstacle => {
-            this.ctx.fillStyle = obstacle.color;
-            this.ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-        });
         
         // Draw power-ups
         this.powerUps.forEach(powerUp => {
@@ -438,8 +615,27 @@ class Game {
         }
     }
     
+    drawPolice() {
+        const { x, y, width, height } = this.police;
+        
+        // Draw body
+        this.ctx.fillStyle = '#0000FF';
+        this.ctx.fillRect(x, y, width, height);
+        
+        // Draw head
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.beginPath();
+        this.ctx.arc(x + width/2, y - 10, 15, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Draw hat
+        this.ctx.fillStyle = '#0000FF';
+        this.ctx.fillRect(x + width/2 - 10, y - 25, 20, 15);
+    }
+    
     drawCharacter() {
         const { x, y, width, height } = this.player;
+        const character = this.characters[this.player.character];
         
         // Update animation frame
         this.player.frameCount++;
@@ -448,38 +644,80 @@ class Game {
             this.player.frameCount = 0;
         }
         
-        // Draw body
-        this.ctx.fillStyle = '#3498db'; // Blue shirt
-        this.ctx.fillRect(x, y + 10, width, height - 20);
+        // Draw speed trail if speed boost is active
+        if (this.player.speedBoost) {
+            this.ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)';
+            this.ctx.lineWidth = 2;
+            for (let i = 0; i < 3; i++) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(x - 20 - (i * 10), y + height/2);
+                this.ctx.lineTo(x - 40 - (i * 10), y + height/2 - 10);
+                this.ctx.stroke();
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(x - 20 - (i * 10), y + height/2);
+                this.ctx.lineTo(x - 40 - (i * 10), y + height/2 + 10);
+                this.ctx.stroke();
+            }
+            
+            this.ctx.fillStyle = 'rgba(255, 165, 0, 0.2)';
+            this.ctx.beginPath();
+            this.ctx.arc(x + width/2, y + height/2, width + 5, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
         
-        // Draw head
-        this.ctx.fillStyle = '#f1c40f'; // Yellow head
-        this.ctx.beginPath();
-        this.ctx.arc(x + width/2, y, width/2, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Draw body (adjusted for sliding)
+        this.ctx.fillStyle = character.bodyColor;
+        if (this.player.isSliding) {
+            this.ctx.fillRect(x, y + height - 10, width, 10);
+        } else {
+            this.ctx.fillRect(x, y + 10, width, height - 20);
+        }
         
-        // Draw eyes
+        // Draw head (only if not sliding)
+        if (!this.player.isSliding) {
+            this.ctx.fillStyle = character.headColor;
+            this.ctx.beginPath();
+            this.ctx.arc(x + width/2, y, width/2, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Draw eyes
+            this.ctx.fillStyle = 'white';
+            this.ctx.beginPath();
+            this.ctx.arc(x + width/3, y - 5, 3, 0, Math.PI * 2);
+            this.ctx.arc(x + 2*width/3, y - 5, 3, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        // Draw arms and legs (adjusted for sliding)
+        if (this.player.isSliding) {
+            this.ctx.fillStyle = character.bodyColor;
+            this.ctx.fillRect(x - 5, y + height - 15, width + 10, 5);
+        } else {
+            this.ctx.fillStyle = character.bodyColor;
+            const armY = this.player.frame === 0 ? y + 15 : y + 25;
+            this.ctx.fillRect(x - 5, armY, 5, 15);
+            this.ctx.fillRect(x + width, armY, 5, 15);
+            
+            this.ctx.fillStyle = character.pantsColor;
+            const legY = this.player.frame === 0 ? y + height - 15 : y + height - 25;
+            this.ctx.fillRect(x + 5, legY, 10, 15);
+            this.ctx.fillRect(x + width - 15, legY, 10, 15);
+        }
+        
+        // Draw speed boost indicator if active
+        if (this.player.speedBoost) {
+            this.ctx.fillStyle = '#FFA500';
+            this.ctx.font = '20px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('⚡', x + width/2, y - 20);
+        }
+        
+        // Draw coin counter
         this.ctx.fillStyle = 'white';
-        this.ctx.beginPath();
-        this.ctx.arc(x + width/3, y - 5, 3, 0, Math.PI * 2);
-        this.ctx.arc(x + 2*width/3, y - 5, 3, 0, Math.PI * 2);
-        this.ctx.fill();
-        
-        // Draw arms
-        this.ctx.fillStyle = '#3498db';
-        const armY = this.player.frame === 0 ? y + 15 : y + 25;
-        // Left arm
-        this.ctx.fillRect(x - 5, armY, 5, 15);
-        // Right arm
-        this.ctx.fillRect(x + width, armY, 5, 15);
-        
-        // Draw legs
-        this.ctx.fillStyle = '#2c3e50'; // Dark pants
-        const legY = this.player.frame === 0 ? y + height - 15 : y + height - 25;
-        // Left leg
-        this.ctx.fillRect(x + 5, legY, 10, 15);
-        // Right leg
-        this.ctx.fillRect(x + width - 15, legY, 10, 15);
+        this.ctx.font = '20px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(`Coins: ${this.player.coins}`, 10, 30);
     }
     
     drawPowerUpIndicators() {
@@ -503,9 +741,225 @@ class Game {
             this.animationId = requestAnimationFrame(() => this.gameLoop());
         }
     }
+    
+    jump() {
+        if (!this.player.isJumping && !this.player.isSliding) {
+            this.player.isJumping = true;
+            this.player.jumpVelocity = -this.player.jumpHeight;
+            
+            // Clear any existing slide
+            if (this.player.slideTimer) {
+                clearTimeout(this.player.slideTimer);
+                this.player.isSliding = false;
+                this.player.height = 60;
+            }
+        }
+    }
+    
+    slide() {
+        if (!this.player.isSliding && !this.player.isJumping) {
+            this.player.isSliding = true;
+            this.player.height = 30;
+            
+            if (this.player.slideTimer) {
+                clearTimeout(this.player.slideTimer);
+            }
+            
+            this.player.slideTimer = setTimeout(() => {
+                this.player.isSliding = false;
+                this.player.height = 60;
+            }, this.player.slideDuration);
+        }
+    }
+    
+    checkCoinCollection() {
+        for (let i = this.coins.length - 1; i >= 0; i--) {
+            const coin = this.coins[i];
+            if (!coin.collected && this.checkCollision(this.player, coin)) {
+                coin.collected = true;
+                this.player.coins += coin.value;
+                this.showCoinCollection(coin);
+            }
+        }
+        this.coins = this.coins.filter(coin => !coin.collected);
+    }
+    
+    showCoinCollection(coin) {
+        const feedback = {
+            text: `+${coin.value}`,
+            x: coin.x,
+            y: coin.y,
+            color: '#FFD700',
+            alpha: 1,
+            duration: 1000
+        };
+        
+        const startTime = Date.now();
+        const animateFeedback = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / feedback.duration;
+            
+            if (progress < 1) {
+                feedback.y -= 2;
+                feedback.alpha = 1 - progress;
+                
+                this.ctx.fillStyle = `rgba(255, 215, 0, ${feedback.alpha})`;
+                this.ctx.font = '20px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(feedback.text, feedback.x + coin.width/2, feedback.y);
+                
+                requestAnimationFrame(animateFeedback);
+            }
+        };
+        
+        animateFeedback();
+    }
+    
+    openShop() {
+        const shop = document.createElement('div');
+        shop.id = 'shop';
+        shop.innerHTML = `
+            <div class="shop-content">
+                <h2>Shop</h2>
+                
+                <div class="shop-section">
+                    <h3>Characters</h3>
+                    <div class="shop-items">
+                        ${Object.entries(this.characters).map(([key, char]) => `
+                            <div class="shop-item">
+                                <h4>${char.name}</h4>
+                                <div class="character-preview" style="
+                                    background-color: ${char.bodyColor};
+                                    width: 40px;
+                                    height: 60px;
+                                    margin: 10px auto;
+                                    position: relative;
+                                ">
+                                    <div style="
+                                        background-color: ${char.headColor};
+                                        width: 20px;
+                                        height: 20px;
+                                        border-radius: 50%;
+                                        position: absolute;
+                                        top: -10px;
+                                        left: 10px;
+                                    "></div>
+                                    <div style="
+                                        background-color: ${char.pantsColor};
+                                        width: 40px;
+                                        height: 20px;
+                                        position: absolute;
+                                        bottom: 0;
+                                    "></div>
+                                </div>
+                                ${!char.unlocked ? `
+                                    <p>Price: ${char.price} coins</p>
+                                    <button onclick="game.buyCharacter('${key}')" ${this.player.coins < char.price ? 'disabled' : ''}>
+                                        Buy
+                                    </button>
+                                ` : `
+                                    <button onclick="game.selectCharacter('${key}')" ${this.player.character === key ? 'disabled' : ''}>
+                                        ${this.player.character === key ? 'Selected' : 'Select'}
+                                    </button>
+                                `}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <div class="shop-section">
+                    <h3>Power-up Upgrades</h3>
+                    <div class="shop-items">
+                        <div class="shop-item">
+                            <h4>Speed Boost</h4>
+                            <p>Current Duration: ${this.powerUpTypes.SPEED.duration/1000}s</p>
+                            <p>Price: ${this.powerUpTypes.SPEED.price} coins</p>
+                            <button onclick="game.buyUpgrade('SPEED')" ${this.player.coins < this.powerUpTypes.SPEED.price ? 'disabled' : ''}>Buy</button>
+                        </div>
+                        <div class="shop-item">
+                            <h4>Shield</h4>
+                            <p>Current Duration: ${this.powerUpTypes.SHIELD.duration/1000}s</p>
+                            <p>Price: ${this.powerUpTypes.SHIELD.price} coins</p>
+                            <button onclick="game.buyUpgrade('SHIELD')" ${this.player.coins < this.powerUpTypes.SHIELD.price ? 'disabled' : ''}>Buy</button>
+                        </div>
+                        <div class="shop-item">
+                            <h4>Score Multiplier</h4>
+                            <p>Current Duration: ${this.powerUpTypes.MULTIPLIER.duration/1000}s</p>
+                            <p>Price: ${this.powerUpTypes.MULTIPLIER.price} coins</p>
+                            <button onclick="game.buyUpgrade('MULTIPLIER')" ${this.player.coins < this.powerUpTypes.MULTIPLIER.price ? 'disabled' : ''}>Buy</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="shop-footer">
+                    <p>Your Coins: ${this.player.coins}</p>
+                    <button onclick="game.closeShop()">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(shop);
+    }
+    
+    buyCharacter(characterKey) {
+        const character = this.characters[characterKey];
+        if (this.player.coins >= character.price) {
+            this.player.coins -= character.price;
+            character.unlocked = true;
+            this.selectCharacter(characterKey);
+            this.showPurchaseFeedback(`Unlocked ${character.name}!`);
+            this.updateShop();
+        }
+    }
+    
+    selectCharacter(characterKey) {
+        this.player.character = characterKey;
+        this.showPurchaseFeedback(`Selected ${this.characters[characterKey].name}`);
+        this.updateShop();
+    }
+    
+    buyUpgrade(type) {
+        const powerUp = this.powerUpTypes[type];
+        if (this.player.coins >= powerUp.price) {
+            this.player.coins -= powerUp.price;
+            powerUp.duration *= 1.5;
+            powerUp.price = Math.floor(powerUp.price * 1.5);
+            
+            // Show purchase feedback
+            this.showPurchaseFeedback(type);
+            
+            // Update shop display
+            this.updateShop();
+        }
+    }
+    
+    showPurchaseFeedback(type) {
+        const feedback = document.createElement('div');
+        feedback.className = 'purchase-feedback';
+        feedback.textContent = `Upgraded ${type} power-up!`;
+        document.body.appendChild(feedback);
+        
+        setTimeout(() => {
+            feedback.remove();
+        }, 2000);
+    }
+    
+    closeShop() {
+        const shop = document.getElementById('shop');
+        if (shop) {
+            shop.remove();
+        }
+    }
+    
+    updateShop() {
+        const shop = document.getElementById('shop');
+        if (shop) {
+            this.closeShop();
+            this.openShop();
+        }
+    }
 }
 
 // Initialize the game when the page loads
 window.addEventListener('load', () => {
-    const game = new Game();
+    window.game = new Game();
 }); 

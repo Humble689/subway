@@ -40,12 +40,13 @@ body {
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
 }
 
-#startButton {
+#startButton, #pauseButton {
     padding: 10px 20px;
     font-size: 18px;
-    background-color: #4CAF50;
     color: white;
     border: none;
     border-radius: 5px;
@@ -53,6 +54,18 @@ body {
     transition: background-color 0.3s;
 }
 
+#startButton {
+    background-color: #4CAF50;
+}
+
 #startButton:hover {
     background-color: #45a049;
+}
+
+#pauseButton {
+    background-color: #2196F3;
+}
+
+#pauseButton:hover {
+    background-color: #0b7dda;
 } 

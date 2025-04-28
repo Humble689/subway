@@ -22,6 +22,7 @@ class Game {
         this.powerUps = [];
         this.score = 0;
         this.gameOver = false;
+        this.isPaused = false;
         this.animationId = null;
         
         this.lanePositions = [
@@ -41,6 +42,8 @@ class Game {
     
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
+            if (this.isPaused || this.gameOver) return;
+            
             if (e.key === 'ArrowUp' && this.player.lane > 0) {
                 this.player.lane--;
             } else if (e.key === 'ArrowDown' && this.player.lane < 2) {
@@ -51,6 +54,20 @@ class Game {
         document.getElementById('startButton').addEventListener('click', () => {
             this.startGame();
         });
+        
+        document.getElementById('pauseButton').addEventListener('click', () => {
+            this.togglePause();
+        });
+    }
+    
+    togglePause() {
+        this.isPaused = !this.isPaused;
+        const pauseButton = document.getElementById('pauseButton');
+        pauseButton.textContent = this.isPaused ? 'Resume' : 'Pause';
+        
+        if (!this.isPaused && !this.gameOver) {
+            this.gameLoop();
+        }
     }
     
     startGame() {
@@ -63,7 +80,9 @@ class Game {
         this.powerUps = [];
         this.score = 0;
         this.gameOver = false;
+        this.isPaused = false;
         document.getElementById('score').textContent = '0';
+        document.getElementById('pauseButton').textContent = 'Pause';
         
         this.gameLoop();
     }
@@ -196,6 +215,17 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.fillText('Game Over!', this.canvas.width / 2, this.canvas.height / 2);
         }
+        
+        // Draw pause message
+        if (this.isPaused) {
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '48px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('PAUSED', this.canvas.width / 2, this.canvas.height / 2);
+        }
     }
     
     drawPowerUpIndicators() {
@@ -213,7 +243,7 @@ class Game {
     }
     
     gameLoop() {
-        if (!this.gameOver) {
+        if (!this.gameOver && !this.isPaused) {
             this.update();
             this.draw();
             this.animationId = requestAnimationFrame(() => this.gameLoop());

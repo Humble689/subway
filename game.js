@@ -41,7 +41,7 @@ class Game {
                 bodyColor: '#2c3e50',
                 pantsColor: '#2c3e50',
                 unlocked: localStorage.getItem('unlocked_NINJA') === 'true'
-            },
+            }
             ROBOT: {
                 name: 'Robot',
                 price: 1000,

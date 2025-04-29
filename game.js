@@ -310,9 +310,9 @@ class Game {
             }
         }
         
-        // Apply speed boost effect
+        // Apply speed boost effect with increased multiplier
         if (this.player.speedBoost) {
-            this.player.speed = this.player.baseSpeed * 1.5;
+            this.player.speed = this.player.baseSpeed * 3; // Increased to 3x speed
         } else {
             this.player.speed = this.player.baseSpeed;
         }
@@ -338,21 +338,21 @@ class Game {
             this.createCoin();
         }
         
-        // Update obstacles
+        // Update obstacles with speed boost effect
         this.obstacles = this.obstacles.filter(obstacle => {
-            obstacle.x -= obstacle.speed;
+            obstacle.x -= obstacle.speed * (this.player.speedBoost ? 1.5 : 1);
             return obstacle.x > -obstacle.width;
         });
         
-        // Update power-ups
+        // Update power-ups with speed boost effect
         this.powerUps = this.powerUps.filter(powerUp => {
-            powerUp.x -= powerUp.speed;
+            powerUp.x -= powerUp.speed * (this.player.speedBoost ? 1.5 : 1);
             return powerUp.x > -powerUp.width;
         });
         
-        // Update coins
+        // Update coins with speed boost effect
         this.coins = this.coins.filter(coin => {
-            coin.x -= coin.speed;
+            coin.x -= coin.speed * (this.player.speedBoost ? 1.5 : 1);
             return coin.x > -coin.width;
         });
         
@@ -690,23 +690,23 @@ class Game {
         
         // Draw speed trail if speed boost is active
         if (this.player.speedBoost) {
-            this.ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)';
-            this.ctx.lineWidth = 2;
-            for (let i = 0; i < 3; i++) {
+            this.ctx.strokeStyle = 'rgba(255, 165, 0, 0.7)'; // Increased opacity
+            this.ctx.lineWidth = 3; // Increased line width
+            for (let i = 0; i < 5; i++) { // Increased number of trail lines
                 this.ctx.beginPath();
-                this.ctx.moveTo(x - 20 - (i * 10), y + height/2);
-                this.ctx.lineTo(x - 40 - (i * 10), y + height/2 - 10);
+                this.ctx.moveTo(x - 20 - (i * 15), y + height/2);
+                this.ctx.lineTo(x - 40 - (i * 15), y + height/2 - 15);
                 this.ctx.stroke();
                 
                 this.ctx.beginPath();
-                this.ctx.moveTo(x - 20 - (i * 10), y + height/2);
-                this.ctx.lineTo(x - 40 - (i * 10), y + height/2 + 10);
+                this.ctx.moveTo(x - 20 - (i * 15), y + height/2);
+                this.ctx.lineTo(x - 40 - (i * 15), y + height/2 + 15);
                 this.ctx.stroke();
             }
             
-            this.ctx.fillStyle = 'rgba(255, 165, 0, 0.2)';
+            this.ctx.fillStyle = 'rgba(255, 165, 0, 0.4)'; // Increased glow opacity
             this.ctx.beginPath();
-            this.ctx.arc(x + width/2, y + height/2, width + 5, 0, Math.PI * 2);
+            this.ctx.arc(x + width/2, y + height/2, width + 10, 0, Math.PI * 2);
             this.ctx.fill();
         }
         

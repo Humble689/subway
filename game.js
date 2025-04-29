@@ -1,12 +1,29 @@
 class Game {
     constructor() {
+        // Check if canvas exists
         this.canvas = document.getElementById('gameCanvas');
+        if (!this.canvas) {
+            console.error('Canvas element not found!');
+            return;
+        }
+        
         this.ctx = this.canvas.getContext('2d');
+        if (!this.ctx) {
+            console.error('Could not get 2D context!');
+            return;
+        }
+        
         this.canvas.width = 800;
         this.canvas.height = 600;
         
-        // Load saved coins from localStorage
-        this.savedCoins = parseInt(localStorage.getItem('playerCoins')) || 0;
+        // Check if localStorage is available
+        let savedCoins = 0;
+        try {
+            savedCoins = parseInt(localStorage.getItem('playerCoins')) || 0;
+        } catch (e) {
+            console.warn('LocalStorage not available, using default coins value');
+        }
+        this.savedCoins = savedCoins;
         
         this.characters = {
             DEFAULT: {
@@ -123,6 +140,16 @@ class Game {
     }
     
     setupEventListeners() {
+        // Check if buttons exist
+        const startButton = document.getElementById('startButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const shopButton = document.getElementById('shopButton');
+        
+        if (!startButton || !pauseButton || !shopButton) {
+            console.error('Required buttons not found!');
+            return;
+        }
+        
         document.addEventListener('keydown', (e) => {
             if (this.isPaused || this.gameOver) return;
             
@@ -137,15 +164,15 @@ class Game {
             }
         });
         
-        document.getElementById('startButton').addEventListener('click', () => {
+        startButton.addEventListener('click', () => {
             this.startGame();
         });
         
-        document.getElementById('pauseButton').addEventListener('click', () => {
+        pauseButton.addEventListener('click', () => {
             this.togglePause();
         });
         
-        document.getElementById('shopButton').addEventListener('click', () => {
+        shopButton.addEventListener('click', () => {
             this.toggleShop();
         });
     }
@@ -351,8 +378,8 @@ class Game {
         // Update score
         const scoreIncrement = this.player.scoreMultiplier ? 2 : 1;
         this.score += scoreIncrement;
-        document.querySelector('.score').textContent = Math.floor(this.score / 10);
-        document.querySelector('.coin-counter').textContent = this.player.coins;
+        document.getElementById('score').textContent = Math.floor(this.score / 10);
+        document.getElementById('coin-counter').textContent = this.player.coins;
         
         // Check if police caught up
         if (this.police.distance <= 0) {
@@ -800,8 +827,12 @@ class Game {
                 if (distance < (this.player.width/2 + coin.width/2)) {
                     coin.collected = true;
                     this.player.coins += coin.value;
-                    // Save coins to localStorage
-                    localStorage.setItem('playerCoins', this.player.coins);
+                    // Save coins to localStorage with error handling
+                    try {
+                        localStorage.setItem('playerCoins', this.player.coins);
+                    } catch (e) {
+                        console.warn('Failed to save coins to localStorage');
+                    }
                     this.showCoinCollection(coin);
                     console.log('Coin collected! Total coins:', this.player.coins);
                     
@@ -936,20 +967,27 @@ class Game {
         if (this.player.coins >= character.price) {
             this.player.coins -= character.price;
             character.unlocked = true;
-            // Save unlocked status to localStorage
-            localStorage.setItem(`unlocked_${characterKey}`, 'true');
+            // Save unlocked status to localStorage with error handling
+            try {
+                localStorage.setItem(`unlocked_${characterKey}`, 'true');
+                localStorage.setItem('playerCoins', this.player.coins);
+            } catch (e) {
+                console.warn('Failed to save character unlock status to localStorage');
+            }
             this.selectCharacter(characterKey);
             this.showPurchaseFeedback(`Unlocked ${character.name}!`);
-            // Save coins to localStorage
-            localStorage.setItem('playerCoins', this.player.coins);
             this.updateShop();
         }
     }
     
     selectCharacter(characterKey) {
         this.player.character = characterKey;
-        // Save selected character to localStorage
-        localStorage.setItem('selectedCharacter', characterKey);
+        // Save selected character to localStorage with error handling
+        try {
+            localStorage.setItem('selectedCharacter', characterKey);
+        } catch (e) {
+            console.warn('Failed to save selected character to localStorage');
+        }
         this.showPurchaseFeedback(`Selected ${this.characters[characterKey].name}`);
         this.updateShop();
     }
@@ -998,5 +1036,16 @@ class Game {
 
 // Initialize the game when the page loads
 window.addEventListener('load', () => {
-    window.game = new Game();
+    try {
+        window.game = new Game();
+    } catch (e) {
+        console.error('Failed to initialize game:', e);
+        // Show error message to user
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = 'red';
+        errorDiv.style.padding = '20px';
+        errorDiv.style.textAlign = 'center';
+        errorDiv.textContent = 'Failed to initialize game. Please check the console for details.';
+        document.body.appendChild(errorDiv);
+    }
 }); 

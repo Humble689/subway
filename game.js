@@ -52,7 +52,7 @@ class Game {
             },
             SUPERHERO: {
                 name: 'Superhero',
-                price: 1500,
+                price: 150,
                 headColor: '#e74c3c',
                 bodyColor: '#e74c3c',
                 pantsColor: '#2c3e50',

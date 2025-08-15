@@ -1,6 +1,5 @@
 class Game {
 
-
     
     constructor() {
         // Check if canvas exists

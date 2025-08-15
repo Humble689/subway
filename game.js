@@ -1,4 +1,9 @@
 class Game {
+
+
+
+
+    
     constructor() {
         // Check if canvas exists
         this.canvas = document.getElementById('gameCanvas');
